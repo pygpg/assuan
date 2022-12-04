@@ -16,6 +16,7 @@
 
 """Items common to both the client and server."""
 
+import logging
 import re
 import socket as _socket
 from array import array
@@ -23,11 +24,9 @@ from typing import (
     TYPE_CHECKING, Dict, List, Optional, Tuple, TypeVar, Union
 )
 
-from pyassuan import LOG
 from pyassuan.error import AssuanError
 
 if TYPE_CHECKING:
-    from logging import Logger
     from socket import socket as Socket
 
 __all__: List[str] = [
@@ -42,6 +41,8 @@ __all__: List[str] = [
     'receive_fds',
     'send_fds',
 ]
+
+log = logging.getLogger(__name__)
 
 # Template bytes / str so input / output types match
 T = TypeVar('T', bytes, str)
@@ -305,7 +306,6 @@ def send_fds(
     socket: 'Socket',
     msg: Optional[bytes] = None,
     fds: Optional[List[int]] = None,
-    logger: Optional['Logger'] = LOG
 ) -> int:
     """Send a file descriptor over a Unix socket using ``sendmsg``.
 
@@ -322,8 +322,8 @@ def send_fds(
             [b'# descriptors in flight: ', str(fds).encode('utf-8'), b'\n']
         )
 
-    if logger is not None:
-        logger.debug(f"sending file descriptors {fds} down {socket}")
+    if log is not None:
+        log.debug(f"sending file descriptors {fds} down {socket}")
 
     arr = array('i', fds) if fds else array('i')
     return socket.sendmsg(
@@ -336,7 +336,6 @@ def receive_fds(
     socket: 'Socket',
     msglen: int = 200,
     maxfds: int = 10,
-    logger: Optional['Logger'] = LOG
 ) -> Tuple[bytes, List[int]]:
     """Recieve file descriptors using ``recvmsg``.
 
@@ -360,8 +359,7 @@ def receive_fds(
             fds.frombytes(
                 cmsg_data[: len(cmsg_data) - (len(cmsg_data) % fds.itemsize)]
             )
-    if logger is not None:
-        logger.debug(
-            f"receiving file descriptors {fds} from {socket} ({msg!r})"
-        )
+    log.debug(
+        f"receiving file descriptors {fds} from {socket} ({msg!r})"
+    )
     return (msg, list(fds))

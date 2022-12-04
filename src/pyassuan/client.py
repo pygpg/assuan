@@ -23,13 +23,14 @@ from typing import (
     TYPE_CHECKING, BinaryIO, Generator, List, Optional, Tuple
 )
 
-from pyassuan import LOG, common
+from pyassuan import common
 from pyassuan.common import Request, Response
 from pyassuan.error import AssuanError
 
 if TYPE_CHECKING:
-    from logging import Logger
     from socket import socket as Socket
+
+log = logging.getLogger(__name__)
 
 
 class AssuanClient:
@@ -43,16 +44,10 @@ class AssuanClient:
     def __init__(
         self,
         name: str,
-        logger: 'Logger' = LOG,
-        use_sublogger: bool = True,
         close_on_disconnect: bool = False
     ) -> None:
         """Initialize pyassuan client."""
         self.name = name
-
-        if use_sublogger:
-            logger = logging.getLogger('{}.{}'.format(logger.name, self.name))
-        self.logger = logger
 
         self.close_on_disconnect = close_on_disconnect
         self.socket: Optional['Socket'] = None
@@ -62,7 +57,7 @@ class AssuanClient:
     def connect(self, socket_path: Optional[str] = None) -> None:
         """Connect."""
         if socket_path:
-            self.logger.info(
+            log.info(
                 'connect to Unix socket at {}'.format(socket_path)
             )
             self.socket = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
@@ -71,16 +66,16 @@ class AssuanClient:
             self.outtake = self.socket.makefile('wb')
         else:
             if not self.intake:
-                self.logger.info('read from stdin')
+                log.info('read from stdin')
                 self.intake = sys.stdin.buffer
             if not self.outtake:
-                self.logger.info('write to stdout')
+                log.info('write to stdout')
                 self.outtake = sys.stdout.buffer
 
     def disconnect(self) -> None:
         """Disconnect."""
         if self.close_on_disconnect:
-            self.logger.info('disconnecting')
+            log.info('disconnecting')
             if self.intake is not None:
                 self.intake.close()
                 self.intake = None
@@ -95,7 +90,7 @@ class AssuanClient:
     # OPTIMIZE: log from error module instead
     # def raiseerror(self, error: AssuanError) -> None:
     #     """Raise error."""
-    #     self.logger.error(str(error))
+    #     log.error(str(error))
     #     raise (error)
 
     def read_response(self) -> 'Response':
@@ -106,20 +101,20 @@ class AssuanClient:
         if len(line) > common.LINE_LENGTH:
             raise AssuanError(message='Line too long')
         if not line.endswith(b'\n'):
-            self.logger.info('S: {!r}'.format(line))
+            log.info('S: {!r}'.format(line))
             raise AssuanError(message='Invalid response')
         line = line[:-1]  # remove trailing newline
         response = Response()
         try:
             response.from_bytes(line)
         except AssuanError as e:
-            self.logger.error(str(e))
+            log.error(str(e))
             raise
-        self.logger.info('S: {}'.format(response))
+        log.info('S: {}'.format(response))
         return response
 
     def _write_request(self, request: 'Request') -> None:
-        self.logger.info('C: {}'.format(request))
+        log.info('C: {}'.format(request))
         if self.outtake is not None:
             self.outtake.write(bytes(request))
             self.outtake.write(b'\n')
@@ -174,7 +169,6 @@ class AssuanClient:
             if response.message == 'D':
                 if response.parameters:
                     rsps.append(common._to_bytes(response.parameters))
-        print(rsps)
         data = b''.join(rsps) if rsps != [] else None
         return (responses, data)
 
@@ -204,7 +198,7 @@ class AssuanClient:
             stop = min(
                 common.LINE_LENGTH - 4, len(encoded_data)
             )  # 'D ', CR, CL
-            self.logger.debug(
+            log.debug(
                 'sending {} bytes of encoded data'.format(len(encoded_data))
             )
             while stop > start:
@@ -215,7 +209,7 @@ class AssuanClient:
                     encoded=True,
                 )
                 requests.append(request)
-                self.logger.debug('send {} byte chunk'.format(stop - start))
+                log.debug('send {} byte chunk'.format(stop - start))
                 self._write_request(request=request)
                 start = stop
                 stop = start + min(
@@ -232,11 +226,9 @@ class AssuanClient:
         """Send file descriptors over a Unix socket."""
         if self.socket:
             _msg = '# descriptors in flight: {}\n'.format(fds)
-            self.logger.info('C: {}'.format(_msg.rstrip('\n')))
+            log.info('C: {}'.format(_msg.rstrip('\n')))
             msg = _msg.encode('utf-8')
-            return common.send_fds(
-                socket=self.socket, msg=msg, fds=fds, logger=None
-            )
+            return common.send_fds(socket=self.socket, msg=msg, fds=fds)
         raise AssuanError(
             code=279, message='No output source for IPC'
         )
@@ -245,10 +237,10 @@ class AssuanClient:
         """Receive file descriptors over a Unix socket."""
         if self.socket:
             msg, fds = common.receive_fds(
-                socket=self.socket, msglen=msglen, maxfds=maxfds, logger=None
+                socket=self.socket, msglen=msglen, maxfds=maxfds,
             )
             string = msg.decode('utf-8')
-            self.logger.info('S: {}'.format(string.rstrip('\n')))
+            log.info('S: {}'.format(string.rstrip('\n')))
             return fds
         raise AssuanError(
             code=278, message='No input source for IPC'

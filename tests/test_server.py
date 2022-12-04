@@ -16,7 +16,6 @@
 # type: ignore
 
 import doctest
-import unittest
 
 from pyassuan import server
 

@@ -43,11 +43,12 @@ __all__: List[str] = [
     'error_response',
 ]
 
-LOG = logging.getLogger('pyassuan')
-LOG.setLevel(logging.ERROR)
-LOG.addHandler(logging.StreamHandler())
-# LOG.addHandler(logging.FileHandler('/tmp/pinentry.log'))
-# LOG.addHandler(logging_handlers.SysLogHandler(address='/dev/log'))
-LOG.handlers[0].setFormatter(
-    logging.Formatter('%(name)s: %(levelname)s: %(message)s')
-)
+log = logging.getLogger(__name__)
+log.addHandler(logging.NullHandler())
+
+# log.setLevel(logging.ERROR)
+# log.addHandler(logging.StreamHandler())
+# log.addHandler(logging.FileHandler('/tmp/pinentry.log'))
+# log.addHandler(logging_handlers.SysLogHandler(address='/dev/log'))
+# log.handlers[0].setFormatter( #     logging.Formatter('%(name)s: %(levelname)s: %(message)s')
+# )

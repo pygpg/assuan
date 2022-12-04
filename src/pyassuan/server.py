@@ -25,16 +25,17 @@ from typing import (
     TYPE_CHECKING, Any, BinaryIO, Dict, Generator, List, Optional
 )
 
-from pyassuan import LOG, common
+from pyassuan import common
 from pyassuan.common import Request, Response
 from pyassuan.error import AssuanError
 
 if TYPE_CHECKING:
-    from logging import Logger
     from socket import socket as Socket
     from threading import Thread
 
 __all__: List[str] = ['AssuanServer', 'AssuanSocketServer']
+
+log = logging.getLogger(__name__)
 
 OPTION_REGEXP = re.compile(r'^-?-?([-\w]+)( *)(=?) *(.*?) *\Z')
 
@@ -52,8 +53,6 @@ class AssuanServer:
     def __init__(
         self,
         name: str,
-        logger: 'Logger' = LOG,
-        use_sublogger: bool = True,
         valid_options: Optional[List[str]] = None,
         strict_options: bool = True,
         singlerequest: bool = False,
@@ -62,9 +61,6 @@ class AssuanServer:
     ) -> None:
         """Intialize pyassuan server."""
         self.name = name
-        if use_sublogger:
-            logger = logging.getLogger('{}.{}'.format(logger.name, self.name))
-        self.logger = logger
 
         self.valid_options = valid_options if valid_options else []
         self.strict_options = strict_options
@@ -85,27 +81,27 @@ class AssuanServer:
     def run(self) -> None:
         """Run pyassuan server instance."""
         self.reset()
-        self.logger.info('running')
+        log.info('running')
         self.connect()
         try:
             self._handle_requests()
         finally:
             self.disconnect()
-            self.logger.info('stopping')
+            log.info('stopping')
 
     def connect(self) -> None:
         """Connect to the GPG Agent."""
         if not self.intake:
-            self.logger.info('read from stdin')
+            log.info('read from stdin')
             self.intake = sys.stdin.buffer
         if not self.outtake:
-            self.logger.info('write to stdout')
+            log.info('write to stdout')
             self.outtake = sys.stdout.buffer
 
     def disconnect(self) -> None:
         """Disconnect from the GPG Agent."""
         if self.close_on_disconnect:
-            self.logger.info('disconnecting')
+            log.info('disconnecting')
             self.intake = None
             self.outtake = None
 
@@ -120,13 +116,13 @@ class AssuanServer:
                 if len(line) > common.LINE_LENGTH:
                     raise AssuanError(message='Line too long')
                 if not line.endswith(b'\n'):
-                    self.logger.info("C: {!r}".format(line))
+                    log.info("C: {!r}".format(line))
                     self.__send_error_response(
                         AssuanError(message='Invalid request')
                     )
                     continue
                 line = line[:-1]  # remove the trailing newline
-                self.logger.info("C: {!r}".format(line))
+                log.info("C: {!r}".format(line))
                 request = Request()
                 try:
                     request.from_bytes(line)
@@ -141,7 +137,7 @@ class AssuanServer:
                 request.command.lower())
             )
         except AttributeError:
-            self.logger.warn('unknown command: {}'.format(request.command))
+            log.warn('unknown command: {}'.format(request.command))
             self.__send_error_response(
                 AssuanError(message='Unknown command')
             )
@@ -154,7 +150,7 @@ class AssuanServer:
             self.__send_error_response(error)
             return
         except Exception:
-            self.logger.error(
+            log.error(
                 'exception while executing {}:\n{}'.format(
                     handle, traceback.format_exc().rstrip()
                 )
@@ -167,7 +163,7 @@ class AssuanServer:
     def __send_response(self, response: 'Response') -> None:
         """For internal use by ``._handle_requests()``."""
         # rstring = str(response)
-        self.logger.info('S: {}'.format(response))
+        log.info('S: {}'.format(response))
         if self.outtake:
             self.outtake.write(bytes(response))
             self.outtake.write(b'\n')
@@ -248,7 +244,7 @@ class AssuanServer:
             if self.strict_options:
                 raise AssuanError(message='Unknown option')
             else:
-                self.logger.info('skipping invalid option: {}'.format(name))
+                log.info('skipping invalid option: {}'.format(name))
         else:
             if not value:
                 value = None
@@ -272,22 +268,13 @@ class AssuanSocketServer:
         server: 'AssuanServer',
         kwargs: Dict[str, Any] = {},
         max_threads: int = 10,
-        logger: 'Logger' = LOG,
-        use_sublogger: bool = True,
     ) -> None:
         """Initialize pyassuan IPC server."""
         self.name = name
-        if use_sublogger:
-            logger = logging.getLogger('{}.{}'.format(logger.name, self.name))
-        self.logger = logger
         self.socket = socket
         self.server = server
         # XXX: should be in/else/fail
         assert 'name' not in kwargs, kwargs['name']
-        assert 'logger' not in kwargs, kwargs['logger']
-        kwargs['logger'] = self.logger
-        assert 'use_sublogger' not in kwargs, kwargs['use_sublogger']
-        kwargs['use_sublogger'] = True
         if 'close_on_disconnect' in kwargs:
             assert kwargs['close_on_disconnect'] == (
                 True, kwargs['close_on_disconnect']
@@ -300,12 +287,12 @@ class AssuanSocketServer:
 
     def run(self) -> None:
         """Run pyassuan socket server."""
-        self.logger.info('listen on socket')
+        log.info('listen on socket')
         self.socket.listen()
         thread_index = 0
         while True:
             socket, address = self.socket.accept()
-            self.logger.info('connection from {}'.format(address))
+            log.info('connection from {}'.format(address))
             self.__cleanup_threads()
             if len(self.threads) > self.max_threads:
                 self.drop_connection(socket, address)
@@ -320,7 +307,7 @@ class AssuanSocketServer:
             thread = self.threads[i]
             thread.join(0)
             if thread.is_alive():
-                self.logger.info('joined thread {}'.format(thread.name))
+                log.info('joined thread {}'.format(thread.name))
                 self.threads.pop(i)
                 thread.socket.shutdown()  # type: ignore
                 thread.socket.close()  # type: ignore
@@ -329,7 +316,7 @@ class AssuanSocketServer:
 
     def drop_connection(self, socket: 'Socket', address: str) -> None:
         """Drop connection."""
-        self.logger.info('drop connection from {}'.format(address))
+        log.info('drop connection from {}'.format(address))
         # TODO: proper error to send to the client?
 
     def __spawn_thread(
