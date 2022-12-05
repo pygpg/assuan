@@ -31,24 +31,21 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = [
-    "build",
+    "build>=0.7.0,<1",
+    "wheel>=0.37.1,<1",
     "proman-versioning>=0.5.0-alpha.2",
     "flake8>=3.8.3,<4",
-    "tox>=3.24.0,<4",
     "mypy>=0.942,<1",
     "pylint>=2.9.5,<3",
     "click==8.0.4",
-    "build>=0.7.0,<1",
     "flit>=3,<4",
-    "wheel>=0.37.1,<1",
     "black==22.1.0",
     "isort>=5.9.2,<6",
     "bandit>=1.6.2",
     "safety>=1.9",
-    "nose2[coverage_plugin]>=0.11.0,<1",
     "pytest>=7",
     "pytest-cov>=2.10",
-    "tox>=3.25.0",
+    "tox>=3.24.0,<4",
 ]
 docs = [
     "sphinx>=5.3",
@@ -113,3 +110,6 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"

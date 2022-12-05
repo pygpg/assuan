@@ -15,19 +15,7 @@
 # pyassuan.  If not, see <http://www.gnu.org/licenses/>.
 # type: ignore
 
-import doctest
-
 from pyassuan import common
-
-# import unittest
-
-# NOTE: moved doctests here as users should rarely need to access these
-
-
-def load_doctests(loader, tests, ignore):
-    """Run doctests."""
-    tests.addTests(doctest.DocTestSuite(common))
-    return tests
 
 
 def test_encode():

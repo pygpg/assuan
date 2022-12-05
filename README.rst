@@ -37,9 +37,8 @@ Contributing
 
 ``pyassuan`` is available as a Git_ repository::
 
-  $ git clone git://tremily.us/pyassuan.git
-  $ pip install '.[test,format,]'
-
+  $ git clone https://github.com/pygpg.git
+  $ pip install -e .[dev]
 See the homepage_ for details.  To install the checkout, run the
 standard::
 
@@ -73,6 +72,7 @@ Version 3`_ or greater.
 Author
 ======
 
+Jesse P. Johnson <jpj6652@gmail.com>
 W. Trevor King <wking@tremily.us>
 
 

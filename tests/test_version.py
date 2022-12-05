@@ -1,4 +1,5 @@
 """Provide tests for project version."""
+
 from pyassuan import __version__
 
 
