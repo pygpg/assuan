@@ -105,25 +105,33 @@ class Request:
         >>> r = Request(command='BYE')
         >>> str(r)
         'BYE'
+
         >>> r = Request(command='OPTION', parameters='testing at 5%')
         >>> str(r)
         'OPTION testing at 5%25'
+
         >>> bytes(r)
         b'OPTION testing at 5%25'
+
         >>> r.from_bytes(b'BYE')
         >>> r.command
         'BYE'
+
         >>> print(r.parameters)
         None
+
         >>> r.from_bytes(b'OPTION testing at 5%25')
         >>> r.command
         'OPTION'
+
         >>> print(r.parameters)
         testing at 5%
+
         >>> r.from_bytes(b' invalid')
         Traceback (most recent call last):
           ...
         pyassuan.error.AssuanError: 170 Invalid request
+
         >>> r.from_bytes(b'in-valid')
         Traceback (most recent call last):
           ...self.socket = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
@@ -193,25 +201,33 @@ class Response:
         >>> r = Response(message='OK')
         >>> str(r)
         'OK'
+
         >>> r = Response(message='ERR', parameters='1 General error')
         >>> str(r)
         'ERR 1 General error'
+
         >>> bytes(r)
         b'ERR 1 General error'
+
         >>> r.from_bytes(b'OK')
         >>> r.message
         'OK'
+
         >>> print(r.parameters)
         None
+
         >>> r.from_bytes(b'ERR 1 General error')
         >>> r.message
         'ERR'
+
         >>> print(r.parameters)
         1 General error
+
         >>> r.from_bytes(b' invalid')
         Traceback (most recent call last):
           ...
         pyassuan.error.AssuanError: 76 Invalid response
+
         >>> r.from_bytes(b'in-valid')
         Traceback (most recent call last):
           ...

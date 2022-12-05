@@ -286,9 +286,11 @@ class AssuanError(Exception):
     >>> e = AssuanError(1)
     >>> print(e)
     1 General error
+
     >>> e = AssuanError(1024, 'testing!')
     >>> print(e)
     1024 testing!
+
     >>> e = AssuanError(message='Unknown packet')
     >>> print(e)
     2 Unknown packet

@@ -210,24 +210,33 @@ class AssuanServer:
             >>> s = AssuanServer(name='test', valid_options=['my-op'])
             >>> list(s._handle_option('my-op = 1 '))  # doctest: +ELLIPSIS
             [<pyassuan.common.Response object at ...>]
+
             >>> s.options
             {'my-op': '1'}
+
             >>> list(s._handle_option('my-op 2'))  # doctest: +ELLIPSIS
             [<pyassuan.common.Response object at ...>]
+
             >>> s.options
             {'my-op': '2'}
+
             >>> list(s._handle_option('--my-op 3'))  # doctest: +ELLIPSIS
             [<pyassuan.common.Response object at ...>]
+
             >>> s.options
             {'my-op': '3'}
+
             >>> list(s._handle_option('my-op'))  # doctest: +ELLIPSIS
             [<pyassuan.common.Response object at ...>]
+
             >>> s.options
             {'my-op': None}
+
             >>> list(s._handle_option('inv'))
             Traceback (most recent call last):
               ...
             pyassuan.error.AssuanError: 174 Unknown option
+
             >>> list(s._handle_option('in|valid'))
             Traceback (most recent call last):
               ...

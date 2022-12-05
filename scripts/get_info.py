@@ -40,10 +40,10 @@ if __name__ == '__main__':
 
     client = AssuanClient(name='get_info', close_on_disconnect=True)
 
-    if args.verbose:
-        client.logger.setLevel(
-            max(logging.DEBUG, client.logger.level - 10 * args.verbose)
-        )
+    # if args.verbose:
+    #     client.logger.setLevel(
+    #         max(logging.DEBUG, client.logger.level - 10 * args.verbose)
+    #     )
 
     client.connect(socket_path=args.filename)
     try:

@@ -164,7 +164,7 @@ class PinEntry(AssuanServer):
                 'send SIGSTOP to pgrp {}'.format(self.connection['tpgrp'])
             )
             # os.killpg(self.connection['tpgrp'], signal.SIGSTOP)
-            os.kill(-self.connection['tpgrp'], signal.SIGSTOP)
+            os.kill(self.connection['tpgrp'], signal.SIGSTOP)
             self.connection['tpgrp stopped'] = True
         else:
             self.logger.info('no TTY name given; use stdin/stdout for I/O')
