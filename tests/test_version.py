@@ -1,6 +1,6 @@
 """Provide tests for project version."""
 
-from pyassuan import __version__
+from assuan import __version__
 
 
 def test_version() -> None:

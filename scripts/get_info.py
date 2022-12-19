@@ -2,34 +2,34 @@
 #
 # Copyright (C) 2012 W. Trevor King <wking@tremily.us>
 #
-# This file is part of pyassuan.
+# This file is part of assuan.
 #
-# pyassuan is free software: you can redistribute it and/or modify it under the
+# assuan is free software: you can redistribute it and/or modify it under the
 # terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# pyassuan is distributed in the hope that it will be useful, but WITHOUT ANY
+# assuan is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# pyassuan.  If not, see <http://www.gnu.org/licenses/>.
+# assuan.  If not, see <http://www.gnu.org/licenses/>.
 
 """Simple pinentry program for getting server info."""
 
-from pyassuan import AssuanClient, AssuanError, Request, __version__
+import argparse
+
+from assuan import AssuanClient, AssuanError, Request, __version__
 
 if __name__ == '__main__':
-    import argparse
-    import logging
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         '-v',
         '--version',
         action='version',
-        version='%(prog)s {}'.format(__version__),
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         '-V', '--verbose', action='count', default=0, help='increase verbosity'

@@ -1,18 +1,18 @@
 # Copyright (C) 2012 W. Trevor King <wking@tremily.us>
 #
-# This file is part of pyassuan.
+# This file is part of assuan.
 #
-# pyassuan is free software: you can redistribute it and/or modify it under the
+# assuan is free software: you can redistribute it and/or modify it under the
 # terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# pyassuan is distributed in the hope that it will be useful, but WITHOUT ANY
+# assuan is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# pyassuan.  If not, see <http://www.gnu.org/licenses/>.
+# assuan.  If not, see <http://www.gnu.org/licenses/>.
 
 """Manage PyAssuan IPC server connections."""
 
@@ -21,13 +21,20 @@ import re
 import sys
 import threading
 import traceback
+from types import TracebackType
 from typing import (
-    TYPE_CHECKING, Any, BinaryIO, Dict, Generator, List, Optional
+    TYPE_CHECKING,
+    Any,
+    BinaryIO,
+    Dict,
+    Generator,
+    List,
+    Optional,
 )
 
-from pyassuan import common
-from pyassuan.common import Request, Response
-from pyassuan.error import AssuanError
+from assuan import common
+from assuan.common import Request, Response
+from assuan.exception import AssuanError
 
 if TYPE_CHECKING:
     from socket import socket as Socket
@@ -54,40 +61,36 @@ class AssuanServer:
         self,
         name: str,
         valid_options: Optional[List[str]] = None,
-        strict_options: bool = True,
-        singlerequest: bool = False,
-        listen_to_quit: bool = False,
-        close_on_disconnect: bool = False,
+        **kwargs: Any,
     ) -> None:
-        """Intialize pyassuan server."""
+        """Intialize assuan server."""
         self.name = name
 
-        self.valid_options = valid_options if valid_options else []
-        self.strict_options = strict_options
         self.options: Dict[str, Any] = {}
+        self.valid_options = valid_options if valid_options else []
 
-        self.singlerequest = singlerequest
-        self.listen_to_quit = listen_to_quit
-        self.close_on_disconnect = close_on_disconnect
+        self.strict_options = kwargs.get('strict_options', True)
+        self.single_request = kwargs.get('single_request', False)
+        self.listen_to_quit = kwargs.get('listen_to_quit', False)
+        self.close_on_disconnect = kwargs.get('close_on_disconnect', False)
+
         self.intake: Optional[BinaryIO] = None
         self.outtake: Optional[BinaryIO] = None
-        self.reset()
 
-    def reset(self) -> None:
-        """Reset the connection but not any existing authentication."""
         self.stop = False
-        self.options.clear()
-
-    def run(self) -> None:
-        """Run pyassuan server instance."""
         self.reset()
-        log.info('running')
+
+    def __enter__(self) -> 'AssuanServer':
         self.connect()
-        try:
-            self._handle_requests()
-        finally:
-            self.disconnect()
-            log.info('stopping')
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[AssuanError]],
+        exc_value: Optional[AssuanError],
+        exc_traceback: TracebackType,
+    ) -> None:
+        self.disconnect()
 
     def connect(self) -> None:
         """Connect to the GPG Agent."""
@@ -105,6 +108,22 @@ class AssuanServer:
             self.intake = None
             self.outtake = None
 
+    def reset(self) -> None:
+        """Reset the connection but not any existing authentication."""
+        self.stop = False
+        self.options.clear()
+
+    def run(self) -> None:
+        """Run assuan server instance."""
+        self.reset()
+        log.info('running')
+        self.connect()
+        try:
+            self._handle_requests()
+        finally:
+            self.disconnect()
+            log.info('stopping')
+
     def _handle_requests(self) -> None:
         self.__send_response(Response('OK', 'Your orders please'))
         if self.outtake:
@@ -116,54 +135,50 @@ class AssuanServer:
                 if len(line) > common.LINE_LENGTH:
                     raise AssuanError(message='Line too long')
                 if not line.endswith(b'\n'):
-                    log.info("C: {!r}".format(line))
+                    log.info("C: %r", line)
                     self.__send_error_response(
                         AssuanError(message='Invalid request')
                     )
                     continue
-                line = line[:-1]  # remove the trailing newline
-                log.info("C: {!r}".format(line))
+                line = line.rstrip()  # remove the trailing newline
+                log.info("C: %r", line)
                 request = Request()
                 try:
                     request.from_bytes(line)
-                except AssuanError as e:
-                    self.__send_error_response(e)
+                except AssuanError as err:
+                    self.__send_error_response(err)
                     continue
                 self._handle_request(request)
 
     def _handle_request(self, request: 'Request') -> None:
         try:
-            handle = getattr(self, '_handle_{}'.format(
-                request.command.lower())
-            )
+            handle = getattr(self, f"_handle_{request.command.lower()}")
         except AttributeError:
-            log.warn('unknown command: {}'.format(request.command))
-            self.__send_error_response(
-                AssuanError(message='Unknown command')
-            )
+            log.warning('unknown command: %s', request.command)
+            self.__send_error_response(AssuanError(message='Unknown command'))
             return
+
         try:
             responses = handle(request.parameters)
             for response in responses:
                 self.__send_response(response)
-        except AssuanError as error:
-            self.__send_error_response(error)
-            return
+        except AssuanError as err:
+            self.__send_error_response(err)
         except Exception:
             log.error(
-                'exception while executing {}:\n{}'.format(
-                    handle, traceback.format_exc().rstrip()
-                )
+                'exception while executing %s:\n%s',
+                handle,
+                traceback.format_exc().rstrip(),
             )
             self.__send_error_response(
                 AssuanError(message='Unspecific Assuan server fault')
             )
-            return
+        return
 
     def __send_response(self, response: 'Response') -> None:
         """For internal use by ``._handle_requests()``."""
         # rstring = str(response)
-        log.info('S: {}'.format(response))
+        log.info('S: %s', response)
         if self.outtake:
             self.outtake.write(bytes(response))
             self.outtake.write(b'\n')
@@ -173,7 +188,7 @@ class AssuanServer:
                 if not self.stop:
                     raise
         else:
-            raise
+            raise Exception('no outtake message provided')
 
     def __send_error_response(self, error: AssuanError) -> None:
         """For internal use by ``._handle_requests()``."""
@@ -183,7 +198,7 @@ class AssuanServer:
     # http://www.gnupg.org/documentation/manuals/assuan/Client-requests.html
 
     def _handle_bye(self, arg: str) -> Generator['Response', None, None]:
-        if self.singlerequest:
+        if self.single_request:
             self.stop = True
         yield Response('OK', 'closing connection')
 
@@ -209,25 +224,25 @@ class AssuanServer:
 
             >>> s = AssuanServer(name='test', valid_options=['my-op'])
             >>> list(s._handle_option('my-op = 1 '))  # doctest: +ELLIPSIS
-            [<pyassuan.common.Response object at ...>]
+            [<assuan.common.Response object at ...>]
 
             >>> s.options
             {'my-op': '1'}
 
             >>> list(s._handle_option('my-op 2'))  # doctest: +ELLIPSIS
-            [<pyassuan.common.Response object at ...>]
+            [<assuan.common.Response object at ...>]
 
             >>> s.options
             {'my-op': '2'}
 
             >>> list(s._handle_option('--my-op 3'))  # doctest: +ELLIPSIS
-            [<pyassuan.common.Response object at ...>]
+            [<assuan.common.Response object at ...>]
 
             >>> s.options
             {'my-op': '3'}
 
             >>> list(s._handle_option('my-op'))  # doctest: +ELLIPSIS
-            [<pyassuan.common.Response object at ...>]
+            [<assuan.common.Response object at ...>]
 
             >>> s.options
             {'my-op': None}
@@ -235,12 +250,12 @@ class AssuanServer:
             >>> list(s._handle_option('inv'))
             Traceback (most recent call last):
               ...
-            pyassuan.error.AssuanError: 174 Unknown option
+            assuan.exception.AssuanError: 174 Unknown option
 
             >>> list(s._handle_option('in|valid'))
             Traceback (most recent call last):
               ...
-            pyassuan.error.AssuanError: 90 Invalid parameter
+            assuan.exception.AssuanError: 90 Invalid parameter
         """
         match = OPTION_REGEXP.match(arg)
         if not match:
@@ -252,8 +267,7 @@ class AssuanServer:
         if name not in self.valid_options:
             if self.strict_options:
                 raise AssuanError(message='Unknown option')
-            else:
-                log.info('skipping invalid option: {}'.format(name))
+            log.info('skipping invalid option: %s', name)
         else:
             if not value:
                 value = None
@@ -275,18 +289,18 @@ class AssuanSocketServer:
         name: str,
         socket: 'Socket',
         server: 'AssuanServer',
-        kwargs: Dict[str, Any] = {},
         max_threads: int = 10,
+        **kwargs: Any,
     ) -> None:
-        """Initialize pyassuan IPC server."""
+        """Initialize assuan IPC server."""
         self.name = name
         self.socket = socket
         self.server = server
-        # XXX: should be in/else/fail
-        assert 'name' not in kwargs, kwargs['name']
+
         if 'close_on_disconnect' in kwargs:
             assert kwargs['close_on_disconnect'] == (
-                True, kwargs['close_on_disconnect']
+                True,
+                kwargs['close_on_disconnect'],
             )
         else:
             kwargs['close_on_disconnect'] = True
@@ -295,18 +309,18 @@ class AssuanSocketServer:
         self.threads: List['Thread'] = []
 
     def run(self) -> None:
-        """Run pyassuan socket server."""
+        """Run assuan socket server."""
         log.info('listen on socket')
         self.socket.listen()
         thread_index = 0
         while True:
             socket, address = self.socket.accept()
-            log.info('connection from {}'.format(address))
+            log.info('connection from %s', address)
             self.__cleanup_threads()
             if len(self.threads) > self.max_threads:
                 self.drop_connection(socket, address)
             self.__spawn_thread(
-                'server-thread-{}'.format(thread_index), socket, address
+                f"server-thread-{thread_index}", socket, address
             )
             thread_index = (thread_index + 1) % self.max_threads
 
@@ -316,7 +330,7 @@ class AssuanSocketServer:
             thread = self.threads[i]
             thread.join(0)
             if thread.is_alive():
-                log.info('joined thread {}'.format(thread.name))
+                log.info('joined thread %s', thread.name)
                 self.threads.pop(i)
                 thread.socket.shutdown()  # type: ignore
                 thread.socket.close()  # type: ignore
@@ -325,7 +339,7 @@ class AssuanSocketServer:
 
     def drop_connection(self, socket: 'Socket', address: str) -> None:
         """Drop connection."""
-        log.info('drop connection from {}'.format(address))
+        log.info('drop connection from %s', address)
         # TODO: proper error to send to the client?
 
     def __spawn_thread(

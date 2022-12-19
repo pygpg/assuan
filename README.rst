@@ -14,16 +14,15 @@ Installation
 Dependencies
 ------------
 
-``pyassuan`` is a simple package with no external dependencies outside
+``assuan`` is a simple package with no external dependencies outside
 the Python 3.6+ standard library.
-
 
 Contributing
 ------------
 
-``pyassuan`` is available as a Git_ repository::
+``assuan`` is available as a Git_ repository::
 
-  $ git clone https://github.com/pygpg/pyassuan.git
+  $ git clone https://github.com/pygpg/assuan.git
 
 See the homepage_ for details.  To install the checkout, run the
 standard::
@@ -58,7 +57,6 @@ Author
 
 Jesse P. Johnson <jpj6652@gmail.com>
 W. Trevor King <wking@tremily.us>
-
 
 References
 ==========

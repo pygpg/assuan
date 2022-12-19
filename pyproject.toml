@@ -3,7 +3,7 @@ requires = ["flit_core>=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "pyassuan"
+name = "assuan"
 version = "0.2.1b1"
 description = "Python module and tools for communicating in the Assuan protocol."
 readme = "README.rst"
@@ -56,8 +56,7 @@ docs = [
 ]
 
 [project.urls]
-homepage = "http://blog.tremily.us/posts/pyassuan/"
-repository = "https://github.com/wking/pyassuan.git"
+repository = "https://github.com/pygpg/assuan.git"
 
 # [tool.flit.scripts]
 # get-info = "scripts/get_info.py"
@@ -71,7 +70,7 @@ filepath = "pyproject.toml"
 pattern = "version = \"${version}\""
 
 [[tool.proman.versioning.files]]
-filepath = "src/pyassuan/__init__.py"
+filepath = "src/assuan/__init__.py"
 pattern = "__version__ = '${version}'"
 
 [[tool.proman.versioning.files]]
@@ -80,8 +79,8 @@ pattern = "__version__ == '${version}'"
 
 [tool.pydocstyle]
 ignore = [
-  "D203",
-  "D213"
+    "D203",
+    "D213"
 ]
 
 [tool.isort]
@@ -110,6 +109,22 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+
+# [tool.pylint]
+# fail-under = 9.0
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "R0903",
+    "C0103",
+    "W0715",
+]
+
+[tool.pylint."FORMAT"]
+max-line-length = 79
+
+[tool.pylint."MISCELLANEOUS"]
+notes = []
 
 [tool.pytest.ini_options]
 addopts = "--doctest-modules"

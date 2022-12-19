@@ -1,18 +1,18 @@
 # Copyright (C) 2012 W. Trevor King <wking@tremily.us>
 #
-# This file is part of pyassuan.
+# This file is part of assuan.
 #
-# pyassuan is free software: you can redistribute it and/or modify it under the
+# assuan is free software: you can redistribute it and/or modify it under the
 # terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# pyassuan is distributed in the hope that it will be useful, but WITHOUT ANY
+# assuan is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# pyassuan.  If not, see <http://www.gnu.org/licenses/>.
+# assuan.  If not, see <http://www.gnu.org/licenses/>.
 
 """Assuan errors as defined in `libgpg-error`_.
 
@@ -281,7 +281,7 @@ CODE: Dict[str, int] = {message: code for code, message in MESSAGE.items()}
 
 
 class AssuanError(Exception):
-    r"""Represent pyassuan errors.
+    r"""Represent assuan errors.
 
     >>> e = AssuanError(1)
     >>> print(e)
@@ -297,11 +297,9 @@ class AssuanError(Exception):
     """
 
     def __init__(
-        self,
-        code: Optional[int] = None,
-        message: Optional[str] = None
+        self, code: Optional[int] = None, message: Optional[str] = None
     ) -> None:
-        """Intialize pyassuan exception."""
+        """Intialize assuan exception."""
         if code and message:
             pass
         elif code:
@@ -313,4 +311,4 @@ class AssuanError(Exception):
 
         self.code = code
         self.message = message
-        super(AssuanError, self).__init__('{} {}'.format(code, message))
+        super().__init__(f"{code} {message}")

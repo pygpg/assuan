@@ -2,35 +2,41 @@
 #
 # Copyright (C) 2012-2017 W. Trevor King <wking@tremily.us>
 #
-# This file is part of pyassuan.
+# This file is part of assuan.
 #
-# pyassuan is free software: you can redistribute it and/or modify it under the
+# assuan is free software: you can redistribute it and/or modify it under the
 # terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
 #
-# pyassuan is distributed in the hope that it will be useful, but WITHOUT ANY
+# assuan is distributed in the hope that it will be useful, but WITHOUT ANY
 # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 # A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License along with
-# pyassuan.  If not, see <http://www.gnu.org/licenses/>.
+# assuan.  If not, see <http://www.gnu.org/licenses/>.
 
 """Simple pinentry program for getting pins from a terminal."""
 
 import copy
+import logging
 import os
-
-# import pprint
 import re
 import signal
 import sys
 import termios
 from typing import Any, Dict, Generator
 
-from pyassuan import __version__, error
-from pyassuan.common import Response
-from pyassuan.server import AssuanServer
+from assuan import __version__
+from assuan.common import Response
+from assuan.exception import AssuanError
+from assuan.server import AssuanServer
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.ERROR)
+log.addHandler(logging.StreamHandler())
+log.addHandler(logging.FileHandler('/tmp/pinentry.log'))
+# log.addHandler(logging_handlers.SysLogHandler(address='/dev/log'))
 
 
 class PinEntry(AssuanServer):
@@ -103,43 +109,41 @@ class PinEntry(AssuanServer):
         self,
         name: str = 'pinentry',
         strict_options: bool = False,
-        singlerequest: bool = True,
-        **kwargs: Any
+        single_request: bool = True,
+        **kwargs: Any,
     ) -> None:
         """Initialize pinentry object."""
         self.strings: Dict[str, Any] = {}
         self.connection: Dict[str, Any] = {}
-        super(PinEntry, self).__init__(
+        super().__init__(
             name=name,
             strict_options=strict_options,
-            singlerequest=singlerequest,
-            **kwargs
+            single_request=single_request,
+            **kwargs,
         )
         self.valid_options.append('ttyname')
 
     def reset(self) -> None:
         """Reset connection."""
-        super(PinEntry, self).reset()
+        super().reset()
         self.strings.clear()
         self.connection.clear()
 
     # user interface
 
     def _connect(self) -> None:
-        self.logger.info('connecting to user')
-        self.logger.debug(f"options:\n{self.options}")
+        log.info('connecting to user')
+        log.debug("options:\n%s", self.options)
         tty_name = self.options.get('ttyname', None)
         if tty_name:
             self.connection['tpgrp'] = self._get_pgrp(tty_name)
-            self.logger.info(
-                f"open to-user output stream for {tty_name}"
+            log.info("open to-user output stream for %s", tty_name)
+            self.connection['to_user'] = open(tty_name, 'w', encoding='utf-8')
+            log.info("open from-user input stream for %s", tty_name)
+            self.connection['from_user'] = open(
+                tty_name, 'r', encoding='utf-8'
             )
-            self.connection['to_user'] = open(tty_name, 'w')
-            self.logger.info(
-                f"open from-user input stream for {tty_name}"
-            )
-            self.connection['from_user'] = open(tty_name, 'r')
-            self.logger.info('get current termios line discipline')
+            log.info('get current termios line discipline')
             self.connection['original termios'] = termios.tcgetattr(
                 self.connection['to_user']
             )  # [iflag, oflag, cflag, lflag, ...]
@@ -156,80 +160,76 @@ class PinEntry(AssuanServer):
             newtermios[3] |= termios.ECHONL
             # enable canonical mode
             newtermios[3] |= termios.ICANON
-            self.logger.info('adjust termios line discipline')
+            log.info('adjust termios line discipline')
             termios.tcsetattr(
                 self.connection['to_user'], termios.TCSANOW, newtermios
             )
-            self.logger.info(
-                'send SIGSTOP to pgrp {}'.format(self.connection['tpgrp'])
-            )
+            log.info("send SIGSTOP to pgrp %s", self.connection['tpgrp'])
             # os.killpg(self.connection['tpgrp'], signal.SIGSTOP)
             os.kill(self.connection['tpgrp'], signal.SIGSTOP)
             self.connection['tpgrp stopped'] = True
         else:
-            self.logger.info('no TTY name given; use stdin/stdout for I/O')
+            log.info('no TTY name given; use stdin/stdout for I/O')
             self.connection['to_user'] = sys.stdout
             self.connection['from_user'] = sys.stdin
-        self.logger.info('connected to user')
+        log.info('connected to user')
         # give a clean line to work on
         self.connection['to_user'].write(os.linesep)
         self.connection['active'] = True
 
     def _disconnect(self) -> None:
-        self.logger.info('disconnecting from user')
+        log.info('disconnecting from user')
         try:
             if self.connection.get('original termios', None):
-                self.logger.info('restore original termios line discipline')
+                log.info('restore original termios line discipline')
                 termios.tcsetattr(
                     self.connection['to_user'],
                     termios.TCSANOW,
                     self.connection['original termios'],
                 )
             if self.connection.get('tpgrp stopped', None) is True:
-                self.logger.info(
-                    'send SIGCONT to pgrp {}'.format(self.connection['tpgrp'])
-                )
+                log.info('send SIGCONT to pgrp %s', self.connection['tpgrp'])
                 # os.killpg(self.connection['tpgrp'], signal.SIGCONT)
                 os.kill(-self.connection['tpgrp'], signal.SIGCONT)
             if self.connection.get('to_user', None) not in [None, sys.stdout]:
-                self.logger.info('close to-user output stream')
+                log.info('close to-user output stream')
                 self.connection['to_user'].close()
             if self.connection.get('from_user', None) not in [
                 None,
                 sys.stdout,
             ]:
-                self.logger.info('close from-user input stream')
+                log.info('close from-user input stream')
                 self.connection['from_user'].close()
         finally:
             self.connection = {'active': False}
-            self.logger.info('disconnected from user')
+            log.info('disconnected from user')
 
     def _get_pgrp(self, tty_name: str) -> int:
-        self.logger.info(f"find process group contolling {tty_name}")
+        log.info("find process group contolling %s", tty_name)
         proc = '/proc'
         for name in os.listdir(proc):
             path = os.path.join(proc, name)
             if not (self._digitregexp.match(name) and os.path.isdir(path)):
                 continue  # not a process directory
-            self.logger.debug(f"checking process {name}")
+            log.debug("checking process %s", name)
             fd_path = os.path.join(path, 'fd', '0')
             try:
                 link = os.readlink(fd_path)
-            except OSError as e:
-                self.logger.debug(f"not our process: {e}")
+            except OSError as err:
+                log.debug("not our process: %s", err)
                 continue  # permission denied (not one of our processes)
             if link != tty_name:
-                self.logger.debug(f"wrong tty: {link}")
+                log.debug("wrong tty: %s", link)
                 continue  # not attached to our target tty
             stat_path = os.path.join(path, 'stat')
-            stat = open(stat_path, 'r').read()
-            self.logger.debug(f"check stat for pgrp: {stat}")
+            stat = open(stat_path, 'r', encoding='utf-8').read()
+            log.debug("check stat for pgrp: %s", stat)
             match = self._tpgrpregexp.match(stat)
             if match is not None:
                 pgrp = int(match.group(1))
-                self.logger.info(f"found pgrp {pgrp} for {tty_name}")
+                log.info("found pgrp %s for %s", pgrp, tty_name)
                 return pgrp
-            raise
+            raise Exception('no match found')
         raise ValueError(tty_name)
 
     def _write(self, string: str) -> None:
@@ -242,9 +242,7 @@ class PinEntry(AssuanServer):
         # drop trailing newline
         return self.connection['from_user'].readline()[:-1]
 
-    def _prompt(
-        self, prompt: str = '?', error=None, add_colon: bool = True
-    ):
+    def _prompt(self, prompt: str = '?', error=None, add_colon: bool = True):
         if add_colon:
             prompt += ':'
         if error:
@@ -257,22 +255,22 @@ class PinEntry(AssuanServer):
 
     # assuan handlers
 
-    def _handle_getinfo(self, arg: str) -> Generator['Response', None, None]:
+    @staticmethod
+    def _handle_getinfo(arg: str) -> Generator['Response', None, None]:
         if arg == 'pid':
             yield Response('D', str(os.getpid()).encode('utf-8'))
         elif arg == 'version':
             yield Response('D', __version__.encode('utf-8'))
         else:
-            raise error.AssuanError(message='Invalid parameter')
+            raise AssuanError(message='Invalid parameter')
         yield Response('OK')
 
     def _handle_setkeyinfo(self, arg: str):
         self.strings['key info'] = arg
         yield Response('OK')
 
-    def _handle_clearpassphrase(
-        self, arg: str
-    ) -> Generator[Response, None, None]:
+    @staticmethod
+    def _handle_clearpassphrase(arg: str) -> Generator[Response, None, None]:
         yield Response('OK')
 
     def _handle_setdesc(self, arg: str) -> Generator[Response, None, None]:
@@ -350,7 +348,7 @@ class PinEntry(AssuanServer):
             self._connect()
             self._write(self.strings['description'])
             if 'key info' in self.strings:
-                self._write('key: {}'.format(self.strings['key info']))
+                self._write(f"key: {self.strings['key info']}")
             if 'qualitybar' in self.strings:
                 self._write(self.strings['qualitybar'])
             pin = self._prompt(
@@ -374,13 +372,13 @@ class PinEntry(AssuanServer):
             self._disconnect()
         if value == '1':
             yield Response('OK')
-        raise error.AssuanError(message='Not confirmed')
+        raise AssuanError(message='Not confirmed')
 
     def _handle_message(self, arg: str) -> Generator[Response, None, None]:
         self._write(self.strings['description'])
         yield Response('OK')
 
-    # def _handle_confirm(self, args):
+    # def _handle_confirm(self, args: str) -> Generator[Response, None, None]:
     #     assert args == '--one-button', args
     #     try:
     #         self._connect()
@@ -395,7 +393,6 @@ class PinEntry(AssuanServer):
 
 if __name__ == '__main__':
     import argparse
-    import logging
     import traceback
 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -417,14 +414,12 @@ if __name__ == '__main__':
     p = PinEntry()
 
     if args.verbose:
-        p.logger.setLevel(
-            max(logging.DEBUG, p.logger.level - 10 * args.verbose)
-        )
+        log.setLevel(max(logging.DEBUG, log.level - 10 * args.verbose))
 
     try:
         p.run()
     except Exception:
-        p.logger.error(
-            f"exiting due to exception:\n{traceback.format_exc().rstrip()}"
+        log.error(
+            "exiting due to exception:\n%s", traceback.format_exc().rstrip()
         )
         raise
